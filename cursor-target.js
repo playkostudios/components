@@ -2,10 +2,11 @@
  * Click/hover/move/button target for [cursor](#cursor).
  *
  * To trigger code when clicking, hovering, unhovering, moving cursor, pressing
- * cursor button or releasing cursor button, use `.addClickFunction(f)`,
+ * cursor button, releasing cursor button or scrolling with the cursor's wheel,
+ * use `.addClickFunction(f)`,
  * `.addHoverFunction(f)`, `.addUnHoverFunction(f)`,
- * `.addMoveFunction(f)`, `.addDownFunction(f)` and
- * `.addUpFunction(f)` respectively with any `function f() {}`.
+ * `.addMoveFunction(f)`, `.addDownFunction(f)`, `.addUpFunction(f)` and
+ *  `.addWheelFunction(f)` respectively with any `function f() {}`.
  *
  * To call members on a different component, you can set up a cursor target like
  * so:
@@ -41,6 +42,9 @@
  *
  * addUpFunction(callback);
  * removeUpFunction(callback);
+ *
+ * addWheelFunction(callback);
+ * removeWheelFunction(callback);
  * ```
  *
  * **Requirements:**
@@ -57,6 +61,7 @@ WL.registerComponent("cursor-target", {
       this.moveFunctions = [];
       this.downFunctions = [];
       this.upFunctions = [];
+      this.wheelFunctions = [];
     },
     onHover: function(object, cursor) {
         for(let f of this.hoverFunctions) f(object, cursor);
@@ -75,6 +80,9 @@ WL.registerComponent("cursor-target", {
     },
     onUp: function(object, cursor) {
         for(let f of this.upFunctions) f(object, cursor);
+    },
+    onWheel: function(object, cursor) {
+        for(let f of this.wheelFunctions) f(object, cursor);
     },
     addHoverFunction: function(f) {
         this._validateCallback(f);
@@ -123,6 +131,14 @@ WL.registerComponent("cursor-target", {
     removeUpFunction: function(f) {
         this._validateCallback(f);
         this._removeItemOnce(this.upFunctions, f);
+    },
+    addWheelFunction: function(f) {
+        this._validateCallback(f);
+        this.wheelFunctions.push(f);
+    },
+    removeWheelFunction: function(f) {
+        this._validateCallback(f);
+        this._removeItemOnce(this.wheelFunctions, f);
     },
 
     _removeItemOnce: function(arr, value) {

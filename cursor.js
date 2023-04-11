@@ -36,6 +36,8 @@ WL.registerComponent('cursor', {
         this.session = null;
         this.collisionMask = (1 << this.collisionGroup);
         this.maxDistance = 100;
+        this.deltaX = 0;
+        this.deltaY = 0;
 
         const sceneLoaded = this.onDestroy.bind(this);
         WL.onSceneLoaded.push(sceneLoaded);
@@ -77,6 +79,8 @@ WL.registerComponent('cursor', {
             WL.canvas.addEventListener("pointerdown", onPointerDown);
             const onPointerUp = this.onPointerUp.bind(this);
             WL.canvas.addEventListener("pointerup", onPointerUp);
+            const onWheel = this.onWheel.bind(this);
+            WL.canvas.addEventListener("wheel", onWheel);
 
             this.projectionMatrix = new Float32Array(16);
             mat4.invert(this.projectionMatrix, this.viewComponent.projectionMatrix);
@@ -88,6 +92,7 @@ WL.registerComponent('cursor', {
                 WL.canvas.removeEventListener("pointermove", onPointerMove);
                 WL.canvas.removeEventListener("pointerdown", onPointerDown);
                 WL.canvas.removeEventListener("pointerup", onPointerUp);
+                WL.canvas.removeEventListener("wheel", onWheel);
                 window.removeEventListener("resize", onViewportResize);
             });
 
@@ -153,10 +158,10 @@ WL.registerComponent('cursor', {
     },
 
     update: function() {
-        this.doUpdate(false);
+        this.doUpdate(false, false);
     },
 
-    doUpdate: function(doClick) {
+    doUpdate: function(doClick, doWheel) {
         /* If in VR, set the cursor ray based on object transform */
         if(this.session) {
             /* Since Google Cardboard tap is registered as arTouchDown without a gamepad, we need to check for gamepad presence */
@@ -179,7 +184,7 @@ WL.registerComponent('cursor', {
                 this.cursorPos.fill(0);
             }
 
-            this.hoverBehaviour(rayHit, doClick);
+            this.hoverBehaviour(rayHit, doClick, doWheel);
         }
 
         if(this.cursorObject) {
@@ -193,7 +198,7 @@ WL.registerComponent('cursor', {
         }
     },
 
-    hoverBehaviour: function(rayHit, doClick) {
+    hoverBehaviour: function(rayHit, doClick, doWheel) {
         if(rayHit.hitCount > 0) {
             if(!this.hoveringObject || !this.hoveringObject.equals(rayHit.objects[0])) {
                 /* Unhover previous, if exists */
@@ -237,6 +242,12 @@ WL.registerComponent('cursor', {
             if(doClick) {
                 if(cursorTarget) cursorTarget.onClick(this.hoveringObject, this);
                 this.globalTarget.onClick(this.hoveringObject, this);
+            }
+
+            /* Wheel */
+            if (doWheel) {
+                if(cursorTarget) cursorTarget.onWheel(this.hoveringObject, this);
+                this.globalTarget.onWheel(this.hoveringObject, this);
             }
         } else if(this.hoveringObject && rayHit.hitCount == 0) {
             const cursorTarget = this.hoveringObject.getComponent("cursor-target");
@@ -289,7 +300,7 @@ WL.registerComponent('cursor', {
     /** 'select' event listener */
     onSelect: function(e) {
         if(e.inputSource.handedness != this.handedness) return;
-        this.doUpdate(true);
+        this.doUpdate(true, false);
     },
 
     /** 'selectstart' event listener */
@@ -311,14 +322,14 @@ WL.registerComponent('cursor', {
         const bounds = e.target.getBoundingClientRect();
         const rayHit = this.updateMousePos(e.clientX, e.clientY, bounds.width, bounds.height);
 
-        this.hoverBehaviour(rayHit, false);
+        this.hoverBehaviour(rayHit, false, false);
     },
 
     /** 'click' event listener */
     onClick: function (e) {
         const bounds = e.target.getBoundingClientRect();
         const rayHit = this.updateMousePos(e.clientX, e.clientY, bounds.width, bounds.height);
-        this.hoverBehaviour(rayHit, true);
+        this.hoverBehaviour(rayHit, true, false);
     },
 
     /** 'pointerdown' event listener */
@@ -329,7 +340,7 @@ WL.registerComponent('cursor', {
         const rayHit = this.updateMousePos(e.clientX, e.clientY, bounds.width, bounds.height);
         this.isDown = true;
 
-        this.hoverBehaviour(rayHit, false);
+        this.hoverBehaviour(rayHit, false, false);
     },
 
     /** 'pointerup' event listener */
@@ -340,7 +351,36 @@ WL.registerComponent('cursor', {
         const rayHit = this.updateMousePos(e.clientX, e.clientY, bounds.width, bounds.height);
         this.isDown = false;
 
-        this.hoverBehaviour(rayHit, false);
+        this.hoverBehaviour(rayHit, false, false);
+    },
+
+    /** 'wheel' event listener */
+    onWheel: function (e) {
+        const bounds = e.target.getBoundingClientRect();
+        const rayHit = this.updateMousePos(e.clientX, e.clientY, bounds.width, bounds.height);
+
+        let deltaX = e.deltaX;
+        let deltaY = e.deltaY;
+
+        // XXX on firefox, if deltaX/deltaY is checked before deltaMode, then
+        // the deltaMode SHOULD be in pixels. chromium-based browsers always use
+        // pixels
+        if (e.deltaMode === 1) {
+            // in lines despite checking deltaX/deltaY first. guess that a line
+            // is 16px tall
+            deltaX *= 16;
+            deltaY *= 16;
+        } else if (e.deltaMode === 2) {
+            // in pages despite checking deltaX/deltaY first. guess that a line
+            // is 128px tall
+            deltaX *= 128;
+            deltaY *= 128;
+        }
+
+        this.deltaX = deltaX;
+        this.deltaY = deltaY;
+
+        this.hoverBehaviour(rayHit, false, true);
     },
 
     /**
